@@ -1,0 +1,110 @@
+public function excel() {
+        $query = device::select('*')
+            ->leftjoin('sites', 'sites.id', '=', 'devices.site_id')
+            ->orderBy('devices.id', 'DESC')->get();
+        
+        $response = array(['No','Device','Version','Cabinet','Backrest', 'Name', 'Provider', 'City', 'temperature', 'Voltage','State_door', 'Date installation', 'State']);
+        $count = 1;
+        foreach($query as $row) {
+            unset($data);
+            $data[] = $count++;
+            $data[] = $row->loka_id;
+            $data[] = $row->version;
+            $data[] = $row->cabinet;
+            $data[] = $row->backrest;
+            
+            $data[] = $row->name;
+            $data[] = $row->provider;
+            $data[] = $row->city;
+
+            $var = measurement::select('temperature')->where('device_id', '=', $row->loka_id)
+            ->orderBy('id', 'desc')->first();
+            $data[] = ($var && ($row->swicht_tem==1)) ? $var->temperature : 'NR' ;
+                
+            $var_tem = measurement::select('voltage')->where('device_id', '=', $row->loka_id)
+            ->orderBy('id', 'desc')->first();
+            $data[] = ($var_tem && ($row->swicht_vol==1)) ? $var_tem->voltage : 'NR' ;
+
+            $var_temS = measurement::select('state_door')->where('device_id', '=', $row->loka_id)
+            ->orderBy('id', 'desc')->first();
+            $data[] = ($var_temS && ($row->swicht_door==1)) ? $var_temS->state_door : 'NR' ;
+
+            $data[] = date('Y-m-d H:m:s', strtotime($row->date_installation));
+            $data[] = $row->state;
+            array_push($response, $data);
+        }
+        
+        $spreadsheet = new Spreadsheet();
+
+        $drawing = new \PhpOffice\PhpSpreadsheet\Worksheet\Drawing();
+        $drawing->setName('Paid');
+        $drawing->setDescription('Paid');
+        $drawing->setPath(storage_path().'/app/public/logow.jpg'); // put your path and image here
+        $drawing->setCoordinates('A1');
+        $drawing->setOffsetX(1);
+        $drawing->setHeight(100);
+        $drawing->getShadow()->setVisible(true);
+        $drawing->setWorksheet($spreadsheet->getActiveSheet());
+
+        $sheet = $spreadsheet->getActiveSheet();
+
+        $styleTittle = [
+            'font' => [
+                'bold' => true,
+                'size' => 30
+            ],
+            'alignment' => [
+                'horizontal' => \PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER,
+            ]
+        ];
+
+        $styleArray = [
+            'font' => [
+                'bold' => true,
+                'size' => 12
+            ],
+            'alignment' => [
+                'horizontal' => \PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER,
+            ]
+        ];
+        $styleBorder = [
+            'borders' => [
+                'allBorders' => [
+                    'borderStyle' => \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN,
+                    'color' => ['argb' => '000000'],
+                ],
+            ],
+            'alignment' => [
+                'horizontal' => \PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_LEFT,
+            ]
+        ];
+        
+        $sheet->getStyle('A1:M'.($count+5))->applyFromArray($styleBorder);
+        $sheet->fromArray($response, NULL, 'A6');  
+        $sheet->mergeCells('A1:M5');
+        $sheet->setCellValue('A1', 'DEVICES LIST');
+        $sheet->getDefaultRowDimension()->setRowHeight(15);
+        $spreadsheet->getActiveSheet()->getStyle('A1')->applyFromArray($styleTittle);
+        
+        $spreadsheet->getActiveSheet()->getColumnDimension('A')->setAutoSize(true);
+        $spreadsheet->getActiveSheet()->getColumnDimension('B')->setAutoSize(true);
+        $spreadsheet->getActiveSheet()->getColumnDimension('C')->setAutoSize(true);
+        $spreadsheet->getActiveSheet()->getColumnDimension('D')->setAutoSize(true);
+        $spreadsheet->getActiveSheet()->getColumnDimension('E')->setAutoSize(true);
+        $spreadsheet->getActiveSheet()->getColumnDimension('F')->setAutoSize(true);
+        $spreadsheet->getActiveSheet()->getColumnDimension('G')->setAutoSize(true);
+        $spreadsheet->getActiveSheet()->getColumnDimension('H')->setAutoSize(true);
+        $spreadsheet->getActiveSheet()->getColumnDimension('I')->setAutoSize(true);
+        $spreadsheet->getActiveSheet()->getColumnDimension('J')->setAutoSize(true);
+        $spreadsheet->getActiveSheet()->getColumnDimension('K')->setAutoSize(true);
+        $spreadsheet->getActiveSheet()->getColumnDimension('L')->setAutoSize(true);
+        $spreadsheet->getActiveSheet()->getColumnDimension('M')->setAutoSize(true);
+        $spreadsheet->getActiveSheet()->getStyle('A6:M6')->applyFromArray($styleArray);
+
+        // redirect output to client browser
+        header('Content-Disposition: attachment;filename="DevicesList-report.xlsx"');
+        header('Cache-Control: max-age=0');
+
+        $writer = new Xlsx($spreadsheet);
+        $writer->save('php://output');
+    }
